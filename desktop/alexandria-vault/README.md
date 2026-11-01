@@ -1,8 +1,8 @@
 # Alexandria local memory vault
 
-**Windows-first desktop prototype source. A working encrypted core, not a verified Windows installer or a production-security claim. No downloadable Windows installer has been produced in this workspace.**
+**Windows-first desktop prototype. The real Windows/MSVC build produced an unsigned installer and validated Claude extension. Interactive Windows Hello, installation, session/recovery UI and live Claude pairing are not yet verified; this is not a production-security claim.**
 
-Your context stays on your computer. Local use needs no Alexandria account or hosted database. The native app manages records, exact-text provenance, versions, connection grants, save proposals, exports and encrypted recovery backups. There is no new chat interface. The existing Alexandria Commons website/API are not this vault and are unchanged.
+Your vault stays on your computer. Local use needs no Alexandria account or hosted database. The native app manages records, exact-text provenance, versions, connection grants, save proposals, exports and encrypted recovery backups. There is no new chat interface. Approved content retrieved by Claude leaves your computer and is subject to the assistant provider's policies. The public website explains and distributes the desktop vault; the existing dataset API is a separate service.
 
 ## What runs here
 
@@ -10,7 +10,17 @@ The Rust contract tests run on Linux against real bundled SQLCipher, real age en
 
 The Windows implementation uses current-user DPAPI for the local vault-key file, Credential Manager for separate connector tokens, Windows Hello desktop-window interop for owner verification, a SID-restricted named pipe, and a WTS/power-event observer. These are Windows APIs, not home-grown encryption or an HTTP fallback.
 
-The Windows security module can be compiler-checked for a Windows target from Linux. That does not run Windows APIs, verify the full app/installer, or exercise Claude Desktop. See `VERIFICATION.md` for actual evidence and blocked checks. Do not put irreplaceable or sensitive personal data into this prototype.
+The Windows/MSVC CI run passed 15 core tests, 5 Windows security tests, the native app/NSIS build and MCPB validation. See `VERIFICATION.md` for actual evidence and the interactive checks still open. Do not put irreplaceable or sensitive personal data into this prototype.
+
+## Download the unsigned Windows prototype
+
+The [public prototype release](https://github.com/alphablocks/alexandria/releases/tag/windows-prototype-0.1.0) distributes the same binaries from the successful [Windows build](https://github.com/alphablocks/alexandria/actions/runs/41286112047):
+
+- [Windows x64 installer](https://github.com/alphablocks/alexandria/releases/download/windows-prototype-0.1.0/Alexandria-Windows-x64-setup.exe)
+- [Claude Desktop extension](https://github.com/alphablocks/alexandria/releases/download/windows-prototype-0.1.0/Alexandria-Windows.mcpb)
+- [SHA-256 checksums](https://github.com/alphablocks/alexandria/releases/download/windows-prototype-0.1.0/SHA256SUMS.txt)
+
+Requires Windows 11 x64 and Windows Hello configured. Follow the Windows first-use steps below; keep the app open and unlocked for Claude access. This is unsigned: do not bypass Windows or organization restrictions to install it. Test with non-sensitive sample data first.
 
 ## Source layout
 
@@ -21,7 +31,7 @@ The Windows security module can be compiler-checked for a Windows target from Li
 - `mcpb/manifest.json`: packaged Claude Desktop adapter manifest. Its binaries are generated locally.
 - `scripts/package-macos.sh`: builds the native helper and adapter on Apple Silicon macOS.
 - `scripts/package-windows.ps1`: builds the Windows adapter and optionally packs the Claude extension.
-- `.github/workflows/windows-vault.yml` at the repository root: actual Windows test/build/unsigned packaging workflow, not a recorded successful run.
+- `.github/workflows/windows-vault.yml` at the repository root: Windows test/build/unsigned packaging workflow, with a recorded successful run linked above.
 
 ## Core development and verification
 

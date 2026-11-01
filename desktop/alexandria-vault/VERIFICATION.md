@@ -1,23 +1,35 @@
 # Alexandria vault — implementation verification
 
-Verified on 1 November 2026 in Linux and a Windows Server 2022 CI runner. **This is not interactive Windows/macOS desktop verification or a security audit. No Windows installer or live Claude integration has been verified yet.**
+Verified on 1 November 2026 in Linux and a Windows Server 2022 CI runner. The CI workflow produced an unsigned Windows x64 installer and Claude MCPB artifact. **This is not interactive Windows 11 desktop/Hello verification, live Claude integration testing, or a security audit.**
 
 ## Latest Windows port
 
-Windows is now the initial desktop target. Windows 11 x64 with Windows Hello is the first supported source-build configuration. The public dataset website/API remain unchanged.
+Windows is now the initial desktop target. Windows 11 x64 with Windows Hello is the first supported prototype configuration. The public website now explains the desktop vault and offers public downloads; the existing dataset API remains unchanged.
 
 | Check | Actual outcome |
 | --- | --- |
 | Linux core contract suite after the port and transport fix | PASS — 19 tests, 0 failures |
 | Windows security library and its Windows tests | PASS — 5 security tests and 15 core contract tests passed on Windows Server 2022/MSVC |
 | Core, adapter and core test targets for Windows GNU | PASS for Windows-target compiler check only; not executed or linked into a distributable executable |
-| Native Tauri/MSVC app and NSIS installer | BLOCKED — first native compile found a shutdown-state borrow error. Source fix applied; rerun pending |
+| Native Tauri/MSVC app and NSIS installer | PASS — built successfully on Windows Server 2022/MSVC in workflow run [41286112047](https://github.com/alphablocks/alexandria/actions/runs/41286112047); unsigned prototype |
 | UI TypeScript check and production build | PASS |
-| Windows MCPB manifest schema, official CLI 2.1.2 | PASS — schema validation, not extension installation |
+| Claude Windows MCPB extension | PASS — built and validated in workflow run 41286112047; installation into Claude was not tested |
 | Formatting and whitespace check | PASS |
-| Existing public site | Still renders; no artifact/API source changes |
-| Windows GitHub Actions workflow | RUN — 3 source revisions; latest Windows test run passed. Native installer still pending. [Run 1](https://github.com/alphablocks/alexandria/actions/runs/41283956938) · [Run 2](https://github.com/alphablocks/alexandria/actions/runs/41285374642) |
+| Public website | PASS — explains the vault, installation and privacy boundaries; desktop/mobile screenshots checked; all three public download URLs return HTTP 200 without credentials |
+| Public binary distribution | PASS — original build hashes verified before publishing; local anonymous downloads match the published SHA-256 manifest; packaged MCPB command executable is present |
+| Windows GitHub Actions workflow | PASS — complete successful build, deliverable verification, and upload in [run 41286112047](https://github.com/alphablocks/alexandria/actions/runs/41286112047). Earlier failed runs: [Run 1](https://github.com/alphablocks/alexandria/actions/runs/41283956938) · [Run 2](https://github.com/alphablocks/alexandria/actions/runs/41285374642) |
 | Windows Hello, native UI, WTS/suspend and live Claude | BLOCKED — no interactive authorized Windows session |
+
+### Download provenance and checksums
+
+The [public unsigned prototype release](https://github.com/alphablocks/alexandria/releases/tag/windows-prototype-0.1.0) distributes the original binaries from the successful Windows build. [Publication run 41288451556](https://github.com/alphablocks/alexandria/actions/runs/41288451556) verified the source run/revision, original hashes, Windows executable headers and the MCPB's included executable before publishing. No native app or adapter code changed between the tested source revision and these files.
+
+Both files and `SHA256SUMS.txt` were downloaded without credentials into ignored `generated-artifacts/vault-windows/public-downloads/`. Their hashes were independently recomputed and matched the manifest. The downloaded MCPB's manifest command resolves to the included `server/alexandria-mcp.exe`, which has a Windows executable header. This is package verification, not execution of the installer or live Claude pairing.
+
+| Public download | SHA-256 |
+| --- | --- |
+| [Alexandria-Windows-x64-setup.exe](https://github.com/alphablocks/alexandria/releases/download/windows-prototype-0.1.0/Alexandria-Windows-x64-setup.exe) | `f60cc6a9998250867f16f12447f8fa63f9b87d132656a682c5099ed273524f48` |
+| [Alexandria-Windows.mcpb](https://github.com/alphablocks/alexandria/releases/download/windows-prototype-0.1.0/Alexandria-Windows.mcpb) | `60df5472030acb7d3d5663eeb5b16927c97053cdb9c2656afc6978d571f709d5` |
 
 ### What the Windows code implements
 
@@ -54,7 +66,7 @@ The first cross-C attempt rejected Cargo's target spelling; normalizing the Zig 
 
 ### Windows release gates still open
 
-Resolve the native compiler error, run `.github/workflows/windows-vault.yml` to success and download its real artifacts. It produces an unsigned prototype only if the build succeeds. There is no artifact URL or installer output in this workspace to download.
+The installer, Claude MCPB and `SHA256SUMS.txt` are available as public release downloads above, without GitHub sign-in. The original [Actions artifact](https://github.com/alphablocks/alexandria/actions/runs/41286112047/artifacts/13075647555) remains separate and may require sign-in. The installer is unsigned; Windows may show a publisher/SmartScreen warning.
 
 On a Windows 11 PC, verify actual Hello cancellation/approval and session-change races; inspect real ACLs and protected credential entries; exercise native CRUD/grants/review/import/export/backup/fresh restore; test screen lock, suspend/resume, idle and monitor failure; install the extension under permitted policy; and run actual Claude save/retrieve/revoke/lock flows. Cross-checking Rust source cannot verify any of those interactive behaviors.
 
@@ -136,6 +148,6 @@ No ChatGPT connection, remote Claude endpoint, hosted vault, cloud synchronizati
 
 ## Next required gate
 
-The current next gate is the Windows build/runtime sequence above. Mac runtime remains a separate, unverified legacy path, not a prerequisite for the user's first usable client.
+The current next gate is interactive Windows 11 runtime verification and the security/distribution work above. The Windows build and public-download checks passed. Mac runtime remains a separate, unverified legacy path.
 
-The existing website is intentionally unchanged: the local vault is a separate desktop project at desktop/alexandria-vault/.
+The website now explains and links to the desktop vault downloads. It is not the vault itself: records, keys and native controls remain in the separate desktop application at desktop/alexandria-vault/.

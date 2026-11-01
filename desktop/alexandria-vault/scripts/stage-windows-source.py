@@ -21,6 +21,7 @@ names = subprocess.check_output(
 ).splitlines()
 files = sorted(set(names) | {
     "LICENSE", ".github/workflows/windows-vault.yml",
+    ".github/workflows/publish-windows-download.yml",
     "research/horizontal-memory/example-context-pack.json",
 })
 allowed = {".rs", ".toml", ".lock", ".json", ".ts", ".tsx", ".css",
