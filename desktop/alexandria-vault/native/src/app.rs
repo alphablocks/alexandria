@@ -421,7 +421,7 @@ pub fn run() {
                 let state = handle.state::<Native>();
                 if let Ok(mut service) = state.service.lock() {
                     service.lock();
-                }
+                };
             }
         });
 }

@@ -1,6 +1,6 @@
 # Alexandria vault — implementation verification
 
-Verified on 1 November 2026 in Linux. **This is not Windows/macOS runtime verification or a security audit. No Windows installer or live Claude integration has been verified here.**
+Verified on 1 November 2026 in Linux and a Windows Server 2022 CI runner. **This is not interactive Windows/macOS desktop verification or a security audit. No Windows installer or live Claude integration has been verified yet.**
 
 ## Latest Windows port
 
@@ -9,14 +9,14 @@ Windows is now the initial desktop target. Windows 11 x64 with Windows Hello is 
 | Check | Actual outcome |
 | --- | --- |
 | Linux core contract suite after the port and transport fix | PASS — 19 tests, 0 failures |
-| Windows security library and its four Windows tests | PASS for Windows-target compiler check only; not executed |
+| Windows security library and its Windows tests | PASS — 5 security tests and 15 core contract tests passed on Windows Server 2022/MSVC |
 | Core, adapter and core test targets for Windows GNU | PASS for Windows-target compiler check only; not executed or linked into a distributable executable |
-| Windows native/MSVC app and NSIS installer | NOT EXECUTED — requires Windows/MSVC build infrastructure; workflow supplied |
+| Native Tauri/MSVC app and NSIS installer | BLOCKED — first native compile found a shutdown-state borrow error. Source fix applied; rerun pending |
 | UI TypeScript check and production build | PASS |
 | Windows MCPB manifest schema, official CLI 2.1.2 | PASS — schema validation, not extension installation |
 | Formatting and whitespace check | PASS |
 | Existing public site | Still renders; no artifact/API source changes |
-| Windows GitHub Actions workflow | Added, NOT RUN here |
+| Windows GitHub Actions workflow | RUN — 3 source revisions; latest Windows test run passed. Native installer still pending. [Run 1](https://github.com/alphablocks/alexandria/actions/runs/41283956938) · [Run 2](https://github.com/alphablocks/alexandria/actions/runs/41285374642) |
 | Windows Hello, native UI, WTS/suspend and live Claude | BLOCKED — no interactive authorized Windows session |
 
 ### What the Windows code implements
@@ -35,7 +35,7 @@ Windows is now the initial desktop target. Windows 11 x64 with Windows Hello is 
 
 The Linux suite adds a monitor-gate regression: when the atomic gate closes, tool access fails before the observer can acquire the service mutex; reopening the gate does not unlock the database. Status epochs advance on lock/unlock.
 
-The compiled Windows-only tests cover real DPAPI roundtrip/tamper detection, on-disk DACL checks and overwrite refusal, isolated Credential Manager entries/deletion, named-pipe request/duplicate-listener refusal, session-event classification, invalid-window owner-verification failure, SID checks and core retrieval/revocation/locking over the Windows pipe. They have not been executed in this environment. No test substitutes fake Windows API success.
+The five Windows-only tests passed on the Windows Server runner: real DPAPI roundtrip/tamper detection, on-disk DACL checks and overwrite refusal, a negative Everyone-ACE test, isolated Credential Manager entries/deletion, named-pipe request/duplicate-listener refusal, session-event classification, invalid-window owner-verification failure and SID checks. Fifteen core contract tests also passed against real Windows SQLCipher and the named-pipe RPC. None of those checks verifies the interactive Windows desktop or a live Claude app. No test substitutes fake Windows API success.
 
 Production local RPC now requires a one-byte response acknowledgment after the client consumes and parses the complete response frame. The server retains its pipe handle until that acknowledgment or its transport deadline, but releases the service mutex first so revocation is not delayed by a slow client. This is an internal transport handshake, not a change to public MCP stdio. The Windows core pipe test uses production `call_pipe`/`serve_stream` without a test-only keepalive. Two additional Linux contracts verify delayed acknowledgment/revocation and absent-acknowledgment timeout on the same production server path; the normal socket contract exercises the production client's acknowledgment.
 
@@ -54,7 +54,7 @@ The first cross-C attempt rejected Cargo's target spelling; normalizing the Zig 
 
 ### Windows release gates still open
 
-Run `.github/workflows/windows-vault.yml` in an authorized GitHub repository or the documented Windows developer build. This produces an unsigned prototype only if the build succeeds. There is no artifact URL or installer output in this workspace to download.
+Resolve the native compiler error, run `.github/workflows/windows-vault.yml` to success and download its real artifacts. It produces an unsigned prototype only if the build succeeds. There is no artifact URL or installer output in this workspace to download.
 
 On a Windows 11 PC, verify actual Hello cancellation/approval and session-change races; inspect real ACLs and protected credential entries; exercise native CRUD/grants/review/import/export/backup/fresh restore; test screen lock, suspend/resume, idle and monitor failure; install the extension under permitted policy; and run actual Claude save/retrieve/revoke/lock flows. Cross-checking Rust source cannot verify any of those interactive behaviors.
 
