@@ -1,0 +1,91 @@
+name: Publish unsigned Windows downloads
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/workflows/publish-windows-download.yml"]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: windows-prototype-download
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_RUN: "41286112047"
+      SOURCE_SHA: "d543837711c26f7fb5c0028dc36bd77acbd44563"
+      TAG: windows-prototype-0.1.0
+    steps:
+      - name: Confirm successful source build
+        run: |
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > run.json
+          python - <<'PY'
+          import json, os
+          run = json.load(open("run.json"))
+          assert run["conclusion"] == "success", "Source build did not pass"
+          assert run["head_sha"] == os.environ["SOURCE_SHA"], "Unexpected source revision"
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: Alexandria-Windows-x64-UNSIGNED-prototype
+          run-id: "41286112047"
+          github-token: ${{ github.token }}
+          path: downloaded
+      - name: Verify source hashes and package executable
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, shutil, zipfile
+          root = pathlib.Path("downloaded")
+          def one(pattern):
+              files = list(root.rglob(pattern))
+              assert len(files) == 1, (pattern, files)
+              return files[0]
+          sums, installer, extension = one("SHA256SUMS.txt"), one("*.exe"), one("*.mcpb")
+          expected = dict((name, digest) for digest, name in
+                          (line.split("  ", 1) for line in sums.read_text().splitlines() if line.strip()))
+          assert set(expected) == {installer.name, extension.name}, "Unexpected checksum manifest"
+          for file in (installer, extension):
+              assert hashlib.sha256(file.read_bytes()).hexdigest() == expected[file.name].lower(), file.name
+          assert installer.read_bytes()[:2] == b"MZ", "Installer is not a Windows executable"
+          with zipfile.ZipFile(extension) as bundle:
+              json.loads(bundle.read("manifest.json"))
+              executables = [name for name in bundle.namelist() if name.endswith(".exe")]
+              assert executables, "Claude extension has no packaged Windows executable"
+              for name in executables:
+                  assert bundle.read(name)[:2] == b"MZ", "Invalid extension executable"
+          out = pathlib.Path("public-downloads")
+          out.mkdir()
+          shutil.copyfile(installer, out / "Alexandria-Windows-x64-setup.exe")
+          shutil.copyfile(extension, out / "Alexandria-Windows.mcpb")
+          manifest = "".join(f"{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n"
+                             for p in sorted(out.iterdir()))
+          (out / "SHA256SUMS.txt").write_text(manifest)
+          print(manifest)
+          PY
+      - name: Publish public unsigned prototype
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite published binaries."
+            exit 1
+          fi
+          cat > notes.md <<'EOF'
+          UNSIGNED EXPERIMENTAL PROTOTYPE — not a trusted signed release.
+
+          Requires Windows 11 x64, configured Windows Hello, and Claude Desktop with custom extensions permitted.
+          Install the Windows app, create/unlock a vault, add selected records, create a connection and grant records, then install Alexandria-Windows.mcpb in Claude Desktop and enter the connection ID. Keep Alexandria open and unlocked.
+
+          Built by https://github.com/alphablocks/alexandria/actions/runs/41286112047 .
+          The Windows build, 15 core tests, 5 Windows security tests, and MCPB validation passed in CI.
+          Interactive Windows Hello, native session/recovery UI and live Claude pairing have not been verified.
+          Use non-sensitive test data. Windows may warn about this unsigned publisher; do not bypass OS or organization restrictions.
+          Only approved records are exposed to connected assistants; content sent to Claude is processed under the provider's policies.
+          SHA256SUMS.txt covers both download files.
+          EOF
+          gh release create "$TAG" public-downloads/* --target "$SOURCE_SHA" --draft --prerelease \
+            --title "Alexandria 0.1.0 — unsigned Windows prototype" --notes-file notes.md
+          gh release edit "$TAG" --draft=false --prerelease
