@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "targets": ["app", "dmg"],
+    "externalBin": ["binaries/alexandria-keychain"],
+    "macOS": {"minimumSystemVersion": "12.0"}
+  }
+}

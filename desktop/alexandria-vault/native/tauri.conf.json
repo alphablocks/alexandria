@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Alexandria",
+  "version": "0.1.0",
+  "identifier": "org.alexandria.vault",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @workspace/alexandria-vault dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "pnpm --filter @workspace/alexandria-vault build",
+    "frontendDist": "../ui-dist"
+  },
+  "app": {
+    "windows": [{"label":"main","title":"Alexandria","width":1140,"height":800,"minWidth":800,"minHeight":600}],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.png","icons/icon.ico"]
+  }
+}

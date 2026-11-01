@@ -1,0 +1,52 @@
+{
+  "format": "alexandria-context",
+  "schema_version": 1,
+  "synthetic": true,
+  "exported_at": "2026-11-01T00:00:00Z",
+  "export_scope": ["writing", "learning"],
+  "exclusions": ["deleted records", "access grants", "credentials", "unselected scopes"],
+  "records": [
+    {
+      "id": "sample-style",
+      "version": 1,
+      "scope": "writing",
+      "kind": "user_statement",
+      "text": "Use short paragraphs and British spelling.",
+      "status": "superseded",
+      "source": {"provider": "chatgpt", "capture_method": "explicit_save", "reference": "synthetic:writing-session-1", "completeness": "selected_excerpt"},
+      "created_at": "2026-10-01T00:00:00Z",
+      "updated_at": "2026-10-01T00:00:00Z",
+      "approved_at": "2026-10-01T00:00:00Z",
+      "supersedes": null,
+      "sensitivity": "ordinary"
+    },
+    {
+      "id": "sample-style",
+      "version": 2,
+      "scope": "writing",
+      "kind": "user_statement",
+      "text": "Use short paragraphs and Australian spelling.",
+      "status": "active",
+      "source": {"provider": "claude", "capture_method": "explicit_correction", "reference": "synthetic:writing-session-2", "completeness": "selected_excerpt"},
+      "created_at": "2026-10-01T00:00:00Z",
+      "updated_at": "2026-10-02T00:00:00Z",
+      "approved_at": "2026-10-02T00:00:00Z",
+      "supersedes": {"id": "sample-style", "version": 1},
+      "sensitivity": "ordinary"
+    },
+    {
+      "id": "sample-learning",
+      "version": 1,
+      "scope": "learning",
+      "kind": "assistant_inference",
+      "text": "The learner may prefer worked examples before formal definitions.",
+      "status": "proposed",
+      "source": {"provider": "claude", "capture_method": "suggested_summary", "reference": "synthetic:learning-session-1", "completeness": "summary"},
+      "created_at": "2026-10-03T00:00:00Z",
+      "updated_at": "2026-10-03T00:00:00Z",
+      "approved_at": null,
+      "supersedes": null,
+      "sensitivity": "ordinary"
+    }
+  ]
+}

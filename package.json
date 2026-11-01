@@ -1,0 +1,6 @@
+{
+  "name": "alexandria-build",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@10.26.1"
+}

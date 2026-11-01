@@ -1,0 +1,26 @@
+{
+  "manifest_version": "0.3",
+  "name": "alexandria-local-vault",
+  "display_name": "Alexandria Local Memory",
+  "version": "0.1.0",
+  "description": "Selected owner-approved memory from your local Alexandria vault. Requires the Windows app, Windows Hello and explicit pairing.",
+  "author": {"name": "Alexandria contributors"},
+  "license": "MIT",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/alexandria-mcp.exe",
+    "mcp_config": {
+      "command": "${__dirname}/server/alexandria-mcp.exe",
+      "args": ["--connection", "${user_config.connection_id}"]
+    }
+  },
+  "compatibility": {"platforms": ["win32"]},
+  "user_config": {
+    "connection_id": {
+      "type": "string",
+      "title": "Connection ID",
+      "description": "Create a connection in the Alexandria Windows app and enter its ID. This is not an encryption key.",
+      "required": true
+    }
+  }
+}

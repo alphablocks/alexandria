@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-vault-command"
+description = "Owner controls for the local vault; unavailable to MCP connections."
+commands.allow = ["vault_command"]

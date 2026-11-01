@@ -1,0 +1,10 @@
+node_modules/
+**/target/
+**/ui-dist/
+**/native/gen/
+**/native/binaries/
+generated-artifacts/
+*.mcpb
+.env*
+*.db*
+*.dpapi

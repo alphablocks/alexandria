@@ -1,0 +1,85 @@
+name: Windows local memory vault
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/alexandria-vault/**"
+      - ".github/workflows/windows-vault.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  pull_request:
+    paths:
+      - "desktop/alexandria-vault/**"
+      - ".github/workflows/windows-vault.yml"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      CARGO_BUILD_JOBS: "4"
+      OPENSSL_RUST_USE_NASM: "0"
+      OPENSSL_SRC_PERL: "C:\\Strawberry\\perl\\bin\\perl.exe"
+      RUSTUP_TOOLCHAIN: "1.90.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.26.1"
+          run_install: false
+      - name: MSVC and SDK tools
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt
+      - run: rustup override set 1.90.0
+        working-directory: desktop/alexandria-vault
+      - name: Perl for bundled OpenSSL
+        shell: pwsh
+        run: |
+          "C:\Strawberry\perl\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "C:\Program Files\Git\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & C:\Strawberry\perl\bin\perl.exe -v
+          if ($LASTEXITCODE) { throw "Perl is required for bundled SQLCipher/OpenSSL." }
+      - name: Install UI and packaging dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Core and unattended Windows contracts
+        shell: pwsh
+        run: |
+          cargo test --manifest-path desktop/alexandria-vault/Cargo.toml --locked -p alexandria-vault-core -p alexandria-windows -- --test-threads=1
+          if ($LASTEXITCODE) { throw "Windows contract tests failed." }
+      - run: pnpm --filter @workspace/alexandria-vault typecheck
+      - run: pnpm --filter @workspace/alexandria-vault build
+      - name: Build native app and current-user NSIS installer
+        run: pnpm --filter @workspace/alexandria-vault desktop:build
+      - name: Build and validate Claude extension
+        shell: pwsh
+        run: ./desktop/alexandria-vault/scripts/package-windows.ps1 -PackExtension
+      - name: Verify deliverables and hash files
+        shell: pwsh
+        run: |
+          $installers = @(Get-ChildItem desktop/alexandria-vault/target/release/bundle/nsis/*.exe)
+          if ($installers.Count -ne 1) { throw "Expected exactly one NSIS installer." }
+          $extension = Get-Item generated-artifacts/Alexandria-Windows.mcpb
+          $files = @($installers[0], $extension)
+          $lines = @($files | ForEach-Object { "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)" })
+          $lines | Set-Content generated-artifacts/SHA256SUMS.txt -Encoding ascii
+          $lines | ForEach-Object { Write-Output $_ }
+          "## Unsigned Windows prototype`n" | Out-File $env:GITHUB_STEP_SUMMARY
+          $lines | ForEach-Object { "- ``$_``" | Out-File $env:GITHUB_STEP_SUMMARY -Append }
+          "Native Hello/session/recovery/Claude verification is still required." | Out-File $env:GITHUB_STEP_SUMMARY -Append
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Alexandria-Windows-x64-UNSIGNED-prototype
+          if-no-files-found: error
+          path: |
+            desktop/alexandria-vault/target/release/bundle/nsis/*.exe
+            generated-artifacts/Alexandria-Windows.mcpb
+            generated-artifacts/SHA256SUMS.txt
+      - name: Runtime verification still required
+        run: Write-Output "CI does not verify Windows Hello prompts, desktop UI, physical session-lock/suspend or authorized live Claude use. These remain manual release gates."
