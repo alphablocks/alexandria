@@ -15,6 +15,7 @@ on:
       - "pnpm-workspace.yaml"
 permissions:
   contents: read
+  checks: write
 jobs:
   build:
     runs-on: windows-2022
@@ -39,6 +40,12 @@ jobs:
         run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt
       - run: rustup override set 1.90.0
         working-directory: desktop/alexandria-vault
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/alexandria-vault -> target
+          cache-on-failure: true
+      - name: Prepare build diagnostics
+        run: New-Item -ItemType Directory -Force generated-artifacts | Out-Null
       - name: Perl for bundled OpenSSL
         shell: pwsh
         run: |
@@ -51,15 +58,18 @@ jobs:
       - name: Core and unattended Windows contracts
         shell: pwsh
         run: |
-          cargo test --manifest-path desktop/alexandria-vault/Cargo.toml --locked -p alexandria-vault-core -p alexandria-windows -- --test-threads=1
+          cargo test --manifest-path desktop/alexandria-vault/Cargo.toml --locked -p alexandria-vault-core -p alexandria-windows -- --test-threads=1 2>&1 | Tee-Object generated-artifacts/core-tests.log
           if ($LASTEXITCODE) { throw "Windows contract tests failed." }
       - run: pnpm --filter @workspace/alexandria-vault typecheck
       - run: pnpm --filter @workspace/alexandria-vault build
       - name: Build native app and current-user NSIS installer
-        run: pnpm --filter @workspace/alexandria-vault desktop:build
+        shell: pwsh
+        run: |
+          pnpm --filter @workspace/alexandria-vault desktop:build 2>&1 | Tee-Object generated-artifacts/native-build.log
+          if ($LASTEXITCODE) { throw "Native build failed." }
       - name: Build and validate Claude extension
         shell: pwsh
-        run: ./desktop/alexandria-vault/scripts/package-windows.ps1 -PackExtension
+        run: ./desktop/alexandria-vault/scripts/package-windows.ps1 -PackExtension 2>&1 | Tee-Object generated-artifacts/extension-build.log
       - name: Verify deliverables and hash files
         shell: pwsh
         run: |
@@ -83,3 +93,17 @@ jobs:
             generated-artifacts/SHA256SUMS.txt
       - name: Runtime verification still required
         run: Write-Output "CI does not verify Windows Hello prompts, desktop UI, physical session-lock/suspend or authorized live Claude use. These remain manual release gates."
+      - name: Expose synthetic build diagnostics
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const files = ['core-tests.log', 'native-build.log', 'extension-build.log'];
+            const text = files.filter(f => fs.existsSync('generated-artifacts/' + f))
+              .map(f => '## ' + f + '\n```\n' + fs.readFileSync('generated-artifacts/' + f, 'utf8').slice(-35000) + '\n```')
+              .join('\n').slice(-55000);
+            await github.rest.checks.create({...context.repo, head_sha: context.sha,
+              name: 'Windows build diagnostics', status: 'completed', conclusion: 'failure',
+              output: {title: 'Synthetic CI build failure', summary: 'Compiler/test output only. No end-user vault data is used in CI.',
+                text: text || 'Failure occurred before compiler diagnostics were captured. Inspect the workflow run.'}});
