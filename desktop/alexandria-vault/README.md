@@ -84,9 +84,9 @@ pnpm --filter @workspace/alexandria-vault desktop:build
 
 If these builds succeed on Windows, the current-user NSIS installer is under `desktop/alexandria-vault/target/release/bundle/nsis/`. The packaged extension is `generated-artifacts/Alexandria-Windows.mcpb`. The app build and extension build are separate; failure in either is not a successful installation.
 
-No Windows execution or installer output is claimed here. This source build is not a signed consumer distribution. Do not disable OS, browser, execution-policy or organizational protections to run it. Signing/release validation is a separate requirement.
+The linked CI run produced a real installer and executed the unattended Windows tests. Interactive installation and app use on Windows 11 are not yet verified. This is not a signed consumer distribution. Do not disable OS, browser, execution-policy or organizational protections to run it. Signing/release validation is a separate requirement.
 
-The repository includes a **Windows local memory vault** GitHub Actions workflow. Once the repository is hosted on GitHub with Actions enabled, an authorized owner can run it. A successful run uploads the unsigned installer and extension together as an artifact. Merely adding the workflow does not run it or create a download. CI tests do not substitute for interactive Hello, actual screen lock/suspend, native recovery dialogs or live Claude verification.
+The repository includes a **Windows local memory vault** GitHub Actions workflow. The successful run linked above uploaded the unsigned installer and extension together as an artifact; the publication workflow verified and distributed those files as the public prototype release. CI tests do not substitute for interactive Hello, actual screen lock/suspend, native recovery dialogs or live Claude verification.
 
 ### Use the Windows app with Claude
 

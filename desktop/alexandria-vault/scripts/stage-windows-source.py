@@ -57,17 +57,6 @@ package_path.write_text(json.dumps(package, indent=2) + "\n")
     "node_modules/\n**/target/\n**/ui-dist/\n**/native/gen/\n"
     "**/native/binaries/\ngenerated-artifacts/\n*.mcpb\n.env*\n*.db*\n*.dpapi\n"
 )
-(DEST / "README.md").write_text(
-    "# Alexandria local memory vault\n\n"
-    "MIT-licensed, build-only source snapshot. Windows 11 x64 / Windows Hello.\n\n"
-    "See [the desktop guide](desktop/alexandria-vault/README.md) and "
-    "[actual verification boundaries](desktop/alexandria-vault/VERIFICATION.md).\n\n"
-    "This repository excludes the dataset website, workspace history, personal "
-    "memories, credentials and unrelated attachments. The synthetic context pack "
-    "is a test fixture. Desktop package catalog references are resolved to "
-    "explicit dependency versions; the build workspace has its own frozen lock.\n\n"
-    "Actions produces UNSIGNED experimental artifacts, not a signed public release. "
-    "Unattended CI cannot verify Windows Hello, session/suspend behavior, native "
-    "dialogs, recovery or live Claude use. Do not bypass OS or organization policy.\n"
-)
+shutil.copyfile(ROOT / "desktop/alexandria-vault/REPOSITORY_README.md",
+                DEST / "README.md")
 print(f"Staged {len(files)} allowlisted source files. No Git history was copied.")
