@@ -43,6 +43,48 @@ fn credential_manager_has_separate_installation_entries() {
     credentials::delete_connector(&id).unwrap();
     assert!(credentials::connector(&id).is_err());
 }
+
+#[test]
+fn private_descriptor_rejects_an_additional_everyone_grant() {
+    use std::{os::windows::ffi::OsStrExt, ptr};
+    use windows_sys::Win32::{
+        Foundation::LocalFree,
+        Security::{
+            Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW, SetFileSecurityW,
+            DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
+        },
+    };
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("empty-acl-test");
+    drop(fs::create_private(&path).unwrap());
+    assert!(fs::dacl_is_private(&path).unwrap());
+    let sid = identity::current_sid().unwrap();
+    let text: Vec<u16> = format!("O:{sid}D:P(A;;GA;;;{sid})(A;;GR;;;WD)")
+        .encode_utf16()
+        .chain(Some(0))
+        .collect();
+    let name: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    unsafe {
+        let mut descriptor = ptr::null_mut();
+        assert_ne!(
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                text.as_ptr(),
+                1,
+                &mut descriptor,
+                ptr::null_mut()
+            ),
+            0
+        );
+        let ok = SetFileSecurityW(
+            name.as_ptr(),
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            descriptor,
+        );
+        LocalFree(descriptor);
+        assert_ne!(ok, 0);
+    }
+    assert!(!fs::dacl_is_private(&path).unwrap());
+}
 #[test]
 fn local_named_pipe_request_and_duplicate_listener_rejected() {
     let mut listener = pipe::Listener::bind().unwrap();

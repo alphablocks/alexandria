@@ -98,7 +98,15 @@ pub fn create_private(path: &Path) -> Result<File> {
     };
     check(h != INVALID_HANDLE_VALUE, "IO_ERROR")?;
     let file = unsafe { File::from_raw_handle(h) };
-    if !dacl_private_handle(&file)? {
+    let private = match dacl_private_handle(&file) {
+        Ok(value) => value,
+        Err(error) => {
+            drop(file);
+            let _ = std::fs::remove_file(path);
+            return Err(error);
+        }
+    };
+    if !private {
         drop(file);
         let _ = std::fs::remove_file(path);
         return Err(crate::Error("WINDOWS_SECURITY_ERROR"));
@@ -106,15 +114,27 @@ pub fn create_private(path: &Path) -> Result<File> {
     Ok(file)
 }
 pub fn dacl_is_private(path: &Path) -> Result<bool> {
-    dacl_private_handle(&File::open(path)?)
+    use std::os::windows::fs::OpenOptionsExt;
+    reject_reparse(path)?;
+    // Opening a directory for descriptor inspection requires backup semantics.
+    // This flag permits opening directories; it does not enable a privilege.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .access_mode(READ_CONTROL)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)?;
+    dacl_private_handle(&file)
 }
 fn dacl_private_handle(file: &File) -> Result<bool> {
-    // Tests inspect the actual descriptor using a handle, not source-string matching.
+    // Compare binary SIDs and ACEs, not SDDL text. Windows serializes some
+    // account SIDs as aliases (e.g. LA); string matching rejects valid owners.
     use windows_sys::Win32::{
-        Foundation::LocalFree,
-        Security::Authorization::{
-            ConvertSecurityDescriptorToStringSecurityDescriptorW, GetSecurityInfo, SE_FILE_OBJECT,
+        Foundation::{LocalFree, GENERIC_ALL},
+        Security::{
+            Authorization::{ConvertStringSidToSidW, GetSecurityInfo, SE_FILE_OBJECT},
+            *,
         },
+        System::SystemServices::ACCESS_ALLOWED_ACE_TYPE,
     };
     let mut sd = ptr::null_mut();
     unsafe {
@@ -122,35 +142,86 @@ fn dacl_private_handle(file: &File) -> Result<bool> {
             GetSecurityInfo(
                 file.as_raw_handle(),
                 SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION,
+                DACL_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 ptr::null_mut(),
                 &mut sd,
             ) == 0,
-            "WINDOWS_SECURITY_ERROR",
+            "WINDOWS_DACL_READ_ERROR",
         )?;
-        let mut text = ptr::null_mut();
-        let ok = ConvertSecurityDescriptorToStringSecurityDescriptorW(
-            sd,
-            1,
-            DACL_SECURITY_INFORMATION,
-            &mut text,
-            ptr::null_mut(),
-        ) != 0;
+        let result = (|| {
+            let mut owner = ptr::null_mut();
+            let mut defaulted = 0;
+            check(
+                GetSecurityDescriptorOwner(sd, &mut owner, &mut defaulted) != 0,
+                "WINDOWS_DACL_READ_ERROR",
+            )?;
+            let mut control = 0;
+            let mut revision = 0;
+            check(
+                GetSecurityDescriptorControl(sd, &mut control, &mut revision) != 0,
+                "WINDOWS_DACL_READ_ERROR",
+            )?;
+            let mut present = 0;
+            let mut acl = ptr::null_mut();
+            check(
+                GetSecurityDescriptorDacl(sd, &mut present, &mut acl, &mut defaulted) != 0,
+                "WINDOWS_DACL_READ_ERROR",
+            )?;
+            if present == 0 || acl.is_null() || owner.is_null() || control & SE_DACL_PROTECTED == 0
+            {
+                return Ok(false);
+            }
+            let mut info: ACL_SIZE_INFORMATION = std::mem::zeroed();
+            check(
+                GetAclInformation(
+                    acl,
+                    (&mut info as *mut ACL_SIZE_INFORMATION).cast(),
+                    std::mem::size_of::<ACL_SIZE_INFORMATION>() as u32,
+                    AclSizeInformation,
+                ) != 0,
+                "WINDOWS_DACL_READ_ERROR",
+            )?;
+            if info.AceCount != 1 {
+                return Ok(false);
+            }
+            let mut ace = ptr::null_mut();
+            check(GetAce(acl, 0, &mut ace) != 0, "WINDOWS_DACL_READ_ERROR")?;
+            let header = &*(ace as *const ACE_HEADER);
+            let offset = std::mem::offset_of!(ACCESS_ALLOWED_ACE, SidStart);
+            if header.AceType as u32 != ACCESS_ALLOWED_ACE_TYPE
+                || header.AceFlags as u32 & INHERITED_ACE != 0
+                || (header.AceSize as usize) < offset + 8
+            {
+                return Ok(false);
+            }
+            let allowed = &*(ace as *const ACCESS_ALLOWED_ACE);
+            if allowed.Mask != FILE_ALL_ACCESS && allowed.Mask != GENERIC_ALL {
+                return Ok(false);
+            }
+            let sid = (ace as *const u8).add(offset) as *mut std::ffi::c_void;
+            if IsValidSid(sid) == 0
+                || IsValidSid(owner) == 0
+                || GetLengthSid(sid) as usize > header.AceSize as usize - offset
+                || EqualSid(sid, owner) == 0
+            {
+                return Ok(false);
+            }
+            let mut expected = ptr::null_mut();
+            check(
+                ConvertStringSidToSidW(
+                    crate::wide(&crate::identity::current_sid()?).as_ptr(),
+                    &mut expected,
+                ) != 0,
+                "WINDOWS_DACL_READ_ERROR",
+            )?;
+            let matches = EqualSid(sid, expected) != 0;
+            LocalFree(expected);
+            Ok(matches)
+        })();
         LocalFree(sd);
-        check(ok, "WINDOWS_SECURITY_ERROR")?;
-        let mut n = 0;
-        while *text.add(n) != 0 {
-            n += 1;
-        }
-        let s = String::from_utf16_lossy(std::slice::from_raw_parts(text, n));
-        LocalFree(text.cast());
-        Ok(s.contains(&crate::identity::current_sid()?)
-            && !s.contains(";;;WD)")
-            && !s.contains(";;;BU)")
-            && !s.contains(";;;AU)")
-            && s.matches("(A;").count() == 1)
+        result
     }
 }
